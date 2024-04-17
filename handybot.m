@@ -9,8 +9,6 @@
 %     obtained from OpenSignals via TCP/IP port. At least one Bitalino
 %     board should be connected to OpenSignals in order to run this program
 
-clear all; clc; close all;
-warning('off', 'all');
 
 %% CONNECTION TO OPENSIGNALS TCP/IP PROTOCOL
 
@@ -25,7 +23,7 @@ disp("connection done")
 %% CONNECTION TO ROBOT ARM
 
 serialportlist("available")
-port = serialport("/dev/ttyACM0", 9600); % Change to the correct COM Port
+port = serialport("COM3", 9600); % Change to the correct COM Port
 configureTerminator(port, "LF");
 flush(port);
 fopen(port);
@@ -45,7 +43,7 @@ current_state = 0;
 with_th = false;
 
 json_data = '';
-emg_data = [0 0;0 0;0 0];
+emg_data = [0 0;0 0;0 0; 0 0];
 time = [0 0];
 th = [];
 
@@ -57,9 +55,10 @@ yLabel = 'Voltage (mV)';
 legend1 = 'Channel 1';
 legend2 = 'Channel 2';
 legend3 = 'Channel 3';
+legend4 = 'Channel 4';
 
 figure(1)
-subplot(3,1,1);
+subplot(4,1,1);
 channel1plot = plot(time, emg_data(1,:), '-b');
 title(plotTitle, 'FontSize', 10);
 legend(legend1);
@@ -67,16 +66,23 @@ ylim([-2 2]);
 xlabel(xLabel, 'FontSize',10);
 ylabel(yLabel, 'FontSize', 10);
 
-subplot(3,1,2);
+subplot(4,1,2);
 channel2plot = plot(time, emg_data(2,:), '-r');
 legend(legend2);
 ylim([-2 2]);
 xlabel(xLabel, 'FontSize',10);
 ylabel(yLabel, 'FontSize', 10);
 
-subplot(3,1,3);
+subplot(4,1,3);
 channel3plot = plot(time, emg_data(3,:), '-g');
 legend(legend3);
+ylim([-2 2]);
+xlabel(xLabel, 'FontSize',10);
+ylabel(yLabel, 'FontSize', 10);
+
+subplot(4,1,4);
+channel4plot = plot(time, emg_data(4,:), '-g');
+legend(legend4);
 ylim([-2 2]);
 xlabel(xLabel, 'FontSize',10);
 ylabel(yLabel, 'FontSize', 10);
@@ -121,9 +127,11 @@ while cont
             set(channel1plot, 'XData', time, 'Ydata', emg_data(1,:));
             set(channel2plot, 'XData', time, 'Ydata', emg_data(2,:));
             set(channel3plot, 'XData', time, 'Ydata', emg_data(3,:));
+            set(channel4plot, 'XData', time, 'Ydata', emg_data(4,:));
         end
     end
 
+    % this is the first json
     if contains(json_data, '}}}')
         disp("first json")
         substrings = split(json_data, '}}}');
@@ -166,16 +174,16 @@ while cont
         strToSend = strToSend+"#";
         if strToSend ~= oldStrToSend
             write(port, strToSend, "string");
-            disp(strToSend)
+            %disp(strToSend)
             oldStrToSend = strToSend;
         end
     end
 
-    if length(emg_data(1,:))>30*100
+    if length(emg_data(1,:))>60*samp_freq
             for ch=1:size(emg_data,1)
                 thenvelopewindow=50;
                 [signal,~] = envelope(emg_data(ch,:), thenvelopewindow, 'rms');
-                new_th = triangleThreshold(signal, 24);
+                new_th = 1.5*triangleThreshold(signal, 24);
                 if ~with_th
                     th(ch) = new_th;
                 elseif new_th > 0.7*th(ch) && with_th
@@ -184,14 +192,13 @@ while cont
 
             end
             with_th = true;
-            emg_data = emg_data(:,end-15*100:end);
+            emg_data = emg_data(:,end-15*samp_freq:end);
             new_k = 0;
     end
 
     if ~ishandle(channel1plot)
         cont = false;
     end
-    disp(ishandle(channel3plot))
     pause(0.01)
 end
 
